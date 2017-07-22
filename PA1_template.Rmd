@@ -1,25 +1,161 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
+title: "PA1_template"
+author: "Gabriel Golczer"
+date: "July 22, 2017"
 output: 
-  html_document:
-    keep_md: true
+  html_document: 
+    keep_md: yes
 ---
+# Project Week 2 Reproducible Research
+
+This is an R Markdown document for the Week 2 Project of the Reproducible Research Course in the Data Science Specialization (Coursera -John Hopkins University).
+
+The project makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+## Loading the Data into R
+
+The data is loaded from the Git repository after is forked and cloned to my repository and then is unziped and loaded into R.
+
+Unziping:
+
+```{r,echo=TRUE}
+file = "activity.zip"
+if (!file.exists("activity.csv")) {
+  unzip(file)
+}
+
+```
+Reading the data:
+
+```{r,echo=TRUE}
+activity <- read.csv("activity.csv",header=TRUE, stringsAsFactors = F)
+
+```
+
+Convert the dates to the proper format:
+
+```{r, echo=TRUE}
+as.Date(activity$date)-> activity$date
+
+```
+##Make a histogram of the total of number of steps taken each day
+
+```{r, echo=TRUE}
+library(ggplot2)
+
+steps_total<- ggplot(aggregate(data = activity, steps ~ date, FUN= sum),aes(x=date, y=steps))+
+  geom_bar(stat="identity", position='stack')+ ggtitle("Total Steps per Day")+xlab("Day")+ylab("Steps")
+ggsave(plot=steps_total,filename="steps_total.png", dpi=600)
+steps_total
+```
+
+##Calculate the mean and median of the total number of steps taken per day:
+
+```{r, echo=TRUE}
+mean_median <-merge(x= aggregate(data = activity, steps ~ date, FUN= mean, na.rm=TRUE),y = aggregate(data = activity, steps ~ date, FUN= median, na.rm=TRUE),by="date")
+
+colnames(mean_median)<- c("Date","Mean Steps per Day","Median Steps per Day")
+mean_median
+
+```
+
+##Make a Time series plot of the average number of steps taken:
+```{r,echo=TRUE}
+steps_interval <- ggplot(aggregate(data = activity, steps ~ interval, FUN= mean),aes(x=interval, y=steps))+
+  geom_point()+geom_line()+ ggtitle("Steps Taken per Interval")+xlab("5-minute interval")+ylab("the average number of steps taken (across all days)")
+
+ggsave(plot=steps_interval,filename="steps_interval.png", dpi=600)
+steps_interval
+```
+
+##The 5-minute interval that, on average, contains the maximum number of steps: 
+```{r, echo=TRUE}
+average_steps_interval <-aggregate(data = activity, steps ~ interval, FUN= mean)
+
+colnames(average_steps_interval) <- c("5 Seconds Interval","Number of Average Steps")
+
+average_steps_interval[which.max(average_steps_interval[,2]),]
+```
+
+##Code to describe and show a strategy for imputing missing data:
+
+- Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+
+```{r,echo=TRUE}
+sum(is.na(activity$steps))
+
+```
+
+- Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+##Making a new data frame with no NA's , instead they have the mean for that 5-minute interval
+
+- Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+```{r,echo=TRUE}
+activity_no_nas <- activity
+for (i in 1:nrow(activity)){
+  if(is.na(activity[i,1])){
+      for(j in 1:nrow(average_steps_interval)){
+        if(average_steps_interval[j,1]==activity[i,3]){
+          activity_no_nas[i,1]<- average_steps_interval[j,2]
+        } 
+      }
+  }
+}
+```
+
+- Make a histogram of the total number of steps taken each day
+
+```{r, echo=TRUE}
+steps_nonas<- ggplot(aggregate(data = activity_no_nas, steps ~ date, FUN= sum),aes(x=date, y=steps))+
+  geom_bar(stat="identity", position='stack')+ ggtitle("Total Steps per Day (no NA's)")+xlab("Day")+ylab("Steps")
+
+steps_nonas
+ggsave(plot=steps_nonas,filename="steps_nonas.png", dpi=600)
+steps_nonas
+```
+
+- Calculate and report the mean and median total number of steps taken per day
+
+```{r, echo=TRUE}
+mean_median_no_nas <-merge(x= aggregate(data = activity_no_nas, steps ~ date, FUN= mean, na.rm=TRUE),y = aggregate(data = activity_no_nas, steps ~ date, FUN= median, na.rm=TRUE),by="date")
+
+colnames(mean_median_no_nas)<- c("Date","Mean Steps per Day","Median Steps per Day")
+mean_median_no_nas
+
+```
+- Do these values differ from the estimates from the first part of the assignment? 
+
+Yes
+
+What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+It increases the total number of steps on days that had originally NA's
+
+##Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r,echo=TRUE}
+Day <- character(nrow(activity_no_nas))
+Day_logical <- grepl("S(at|un)", weekdays(activity_no_nas$date, abbreviate = TRUE))
+for(i in 1:length(Day)){
+  if(Day_logical[i]==TRUE) Day[i]<- "Weekend" else Day[i]<- "Weekday"
+}
+
+activity_no_nas$day <- as.factor(Day)
 
 
-## Loading and preprocessing the data
 
+library(gridExtra)
 
+weekday_activity <- subset(aggregate(data = activity_no_nas, steps ~ interval + day, FUN= mean), day=="Weekday")
+weekend_activity <- subset(aggregate(data = activity_no_nas, steps ~ interval + day, FUN= mean), day=="Weekend")
 
-## What is mean total number of steps taken per day?
+weekday_plot <- ggplot(weekday_activity,aes(x=interval, y= steps))+geom_point()+geom_line()+ ggtitle("Weekdays Average Steps by 5-seconds Interval")+ xlab("5-minute interval")+ylab("Average steps")
+weekend_plot <- ggplot(weekend_activity,aes(x=interval, y= steps))+geom_point()+geom_line()+ ggtitle("Weekend Average Steps by 5-seconds Interval")+
+xlab("5-minute interval")+ylab("Average steps")
 
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+weekends_weekdays <- grid.arrange(weekday_plot, weekend_plot, ncol=1)
+ggsave(plot=weekends_weekdays,filename="weekends_weekdays.png", dpi=600)
+weekends_weekdays
+```
